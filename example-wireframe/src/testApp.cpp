@@ -2,22 +2,31 @@
 
 #include "ofxMitsubaRenderer.h"
 
-
-vector<ofVec3f> points;
+ofMesh mesh;
 
 //--------------------------------------------------------------
 void testApp::setup()
 {
 	ofSetVerticalSync(true);
 	ofSetFrameRate(30);
-	ofBackground(255, 255, 255);
+	ofBackground(255);
 	
-	points.resize(500);
+	ofxMitsuba::setBackgroundAlpha(false);
 	
-	for (int i = 0; i < points.size(); i++)
+	mesh.setMode(OF_PRIMITIVE_LINE_STRIP);
+	
+	int n = 500;
+	for (int i = 0; i < 100; i++)
 	{
-		ofVec3f p = ofVec3f(ofRandom(-200, 200), ofRandom(-500, 100), ofRandom(-200, 200));
-		points[i] = p;
+		ofVec3f v;
+		v.x = ofRandom(-n, n);
+		v.y = ofRandom(150, -200);
+		v.z = ofRandom(-n, n);
+		
+		ofColor c = ofColor::fromHsb(ofRandom(255), 255, 255);
+		
+		mesh.addVertex(v);
+		mesh.addColor(c);
 	}
 }
 
@@ -30,41 +39,42 @@ void testApp::update()
 //--------------------------------------------------------------
 void testApp::draw()
 {
-	ofPushMatrix();
-	
-	ofTranslate(ofGetWidth()/2, ofGetHeight()/2);
-	ofRotate(ofGetElapsedTimef() * 20, 0, 1, 0);
-
 	glEnable(GL_DEPTH_TEST);
 	
-	ofSetColor(0, 255, 0);
+	ofTranslate(0, 100);
+
+	ofTranslate(ofGetWindowSize()/ 2);
 	
-	for (int i = 0; i < points.size(); i++)
-	{
-		ofVec3f p = points[i];
-		ofBox(p.x, p.y, p.z, 50);
-	}
+	ofRotate(15, -1, 0, 0);
+	ofRotate(ofGetElapsedTimef() * 10, 0, 1, 0);
 	
-	ofxMitsuba::enableVertexColor();
-	
-	ofSetColor(255, 0, 0);
-	ofSetRectMode(OF_RECTMODE_CENTER);
+	ofFill();
+	ofSetColor(255);
 	ofPushMatrix();
 	ofRotate(90, 1, 0, 0);
-	ofRect(ofVec3f(0, 0, -100), 2000, 2000);
+	ofRect(-1000, -1000, 2000, 2000);
 	ofPopMatrix();
+
+	ofTranslate(0, -100);
 	
-	ofPopMatrix();
+	ofSetLineWidth(5);
+	mesh.draw();
+
+	ofSetLineWidth(20);
+	ofNoFill();
+	ofSetColor(255, 0, 0);
+	ofBox(200);
 	
-	ofSetColor(0);
-	ofDrawBitmapString("Press space key", 10, 20);
+	ofFill();
+	ofSetColor(0, 255, 0);
+	ofBox(100);
 }
 
 //--------------------------------------------------------------
 void testApp::keyPressed(int key)
 {
 	if (key == ' ')
-		ofxMitsuba::preview(ofxMitsuba::PhotonMapper(1));
+		ofxMitsuba::preview(ofxMitsuba::DirectIllumination());
 }
 
 //--------------------------------------------------------------

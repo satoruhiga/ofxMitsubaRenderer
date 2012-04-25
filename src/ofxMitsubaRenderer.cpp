@@ -1,5 +1,7 @@
 #include "ofxMitsubaRenderer.h"
 
+#include "ofxPolyline2Mesh.h"
+
 #include <zlib.h>
 
 #define NOT_IMPL ofLogError("ofxMitsubaRenderer", "Not implemented: " + string(__PRETTY_FUNCTION__)), throw "Not implemented";
@@ -38,6 +40,8 @@ Renderer::Renderer()
 	
 	// for ofGLRenderer uninitialized bug
 	ofSetCoordHandedness(OF_RIGHT_HANDED);
+	
+	backgroundAlpha = true;
 }
 
 Renderer::~Renderer()
@@ -259,20 +263,12 @@ void Renderer::draw(ofPath & shape)
 
 void Renderer::draw(ofMesh& vertexData)
 {
-	string s = serializeMesh(vertexData);
-	
-	ShapeData data;
-	data.index = serializedMeshes.size();
-	data.serializedData = s;
-	data.bsdf = bsdf;
-	serializedMeshes.push_back(data);
+	const ShapeData &s = serializeMesh(vertexData);
+	serializedMeshes.push_back(s);
 }
 
 void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType)
 {
-	if (renderType == OF_MESH_FILL) vertexData.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
-	else if (renderType == OF_MESH_WIREFRAME) vertexData.setMode(OF_PRIMITIVE_LINE_STRIP);
-	else if (renderType == OF_MESH_POINTS) vertexData.setMode(OF_PRIMITIVE_POINTS);
 	draw(vertexData);
 }
 
@@ -328,7 +324,12 @@ void Renderer::drawRectangle(float x, float y, float z, float w, float h)
 	mesh.addTriangle(0, 1, 2);
 	mesh.addTriangle(2, 3, 0);
 	
-	draw(mesh, fill ? OF_MESH_FILL : OF_MESH_WIREFRAME);
+	if (fill)
+		mesh.setMode(OF_PRIMITIVE_TRIANGLE_STRIP);
+	else
+		mesh.setMode(OF_PRIMITIVE_LINE_LOOP);
+	
+	draw(mesh);
 }
 
 void Renderer::drawTriangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3)
@@ -428,7 +429,7 @@ void Renderer::onDraw(ofEventArgs&)
 		
 		string cmd = getApplicationPath() + " -o " 
 			+ ofToDataPath("preview.png") + " "
-			+ ofToDataPath("preview.xml");
+			+ ofToDataPath("preview.xml") + " -r 10";
 		system(cmd.c_str());
 		
 		cmd = "open " + ofToDataPath("preview.png");
@@ -485,6 +486,13 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	
 	xml << endl;
 	
+	if (!backgroundAlpha)
+	{
+		xml << "<luminaire type='constant'>" << endl;
+		xml << "<srgb name='intensity' value='" << currentBackgroundColor.r << "," << currentBackgroundColor.g << "," << currentBackgroundColor.b << "'/>" << endl;
+		xml << "</luminaire>" << endl << endl;
+	}
+	
 	xml << "<camera type='perspective'>" << endl;
 	
 	xml << "<float name='fov' value='" << fov << "'/>" << endl;
@@ -500,7 +508,12 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	xml << "<film type='pngfilm'>" << endl;
 	xml << "<integer name='width' value='" << currentViewport.width << "'/>" << endl;
 	xml << "<integer name='height' value='" << currentViewport.height << "'/>" << endl;
-	xml << "<boolean name='alpha' value='true'/>" << endl;
+	
+	if (backgroundAlpha)
+		xml << "<boolean name='alpha' value='true'/>" << endl;
+	else
+		xml << "<boolean name='alpha' value='false'/>" << endl;
+	
 	xml << "<boolean name='banner' value='false'/>" << endl;
 	xml << "<rfilter type='gaussian'/>" << endl;
 	xml << "</film>" << endl;
@@ -539,20 +552,297 @@ enum ETriMeshFlags
 	ESinglePrecision = 0x1000,
 	EDoublePrecision = 0x2000
 };
-
-string Renderer::serializeMesh(ofMesh &vertexData)
+	
+ofMesh Renderer::mesh2TrianglesMesh(ofMesh& vertexData)
 {
 	ofMesh mesh;
+	mesh.setMode(OF_PRIMITIVE_TRIANGLES);
 	
-	if (vertexData.getMode() == OF_PRIMITIVE_TRIANGLES
-		|| vertexData.getMode() == OF_PRIMITIVE_TRIANGLE_STRIP)
+	ofPrimitiveMode m = vertexData.getMode();
+	
+	if (m == OF_PRIMITIVE_TRIANGLES)
 	{
 		mesh = vertexData;
+		
+		if (!vertexData.hasColors())
+		{
+			for (int i = 0; i < mesh.getNumVertices(); i++)
+			{
+				mesh.addColor(currentColor);
+			}
+		}
+	}
+	else if (m == OF_PRIMITIVE_TRIANGLE_STRIP)
+	{
+		if (vertexData.hasIndices())
+		{
+			for (int i = 0; i < vertexData.getNumIndices() - 2; i++)
+			{
+				int idx1 = vertexData.getIndex(i);
+				int idx2 = vertexData.getIndex(i + 1);
+				int idx3 = vertexData.getIndex(i + 2);
+				
+				mesh.addVertex(vertexData.getVertex(idx1));
+				mesh.addVertex(vertexData.getVertex(idx2));
+				mesh.addVertex(vertexData.getVertex(idx3));
+				
+				if (vertexData.hasNormals())
+				{
+					mesh.addNormal(vertexData.getNormal(idx1));
+					mesh.addNormal(vertexData.getNormal(idx2));
+					mesh.addNormal(vertexData.getNormal(idx3));
+				}
+				
+				if (vertexData.hasColors())
+				{
+					mesh.addColor(vertexData.getColor(idx1));
+					mesh.addColor(vertexData.getColor(idx2));
+					mesh.addColor(vertexData.getColor(idx3));
+				}
+				else
+				{
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+				}
+			}
+		}
+		else
+		{
+			for (int i = 0; i < vertexData.getNumVertices() - 2; i++)
+			{
+				mesh.addVertex(vertexData.getVertex(i));
+				mesh.addVertex(vertexData.getVertex(i + 1));
+				mesh.addVertex(vertexData.getVertex(i + 2));
+				
+				if (vertexData.hasNormals())
+				{
+					mesh.addNormal(vertexData.getNormal(i));
+					mesh.addNormal(vertexData.getNormal(i + 1));
+					mesh.addNormal(vertexData.getNormal(i + 2));
+				}
+				
+				if (vertexData.hasColors())
+				{
+					mesh.addColor(vertexData.getColor(i));
+					mesh.addColor(vertexData.getColor(i + 1));
+					mesh.addColor(vertexData.getColor(i + 2));
+				}
+				else
+				{
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+				}
+			}
+		}
+	}
+	else if (m == OF_PRIMITIVE_TRIANGLE_FAN)
+	{
+		if (vertexData.hasIndices())
+		{
+			for (int i = 1; i < vertexData.getNumIndices() - 1; i++)
+			{
+				const int idx1 = 0;
+				const int idx2 = vertexData.getIndex(i);
+				const int idx3 = vertexData.getIndex(i + 1);
+				
+				mesh.addVertex(vertexData.getVertex(idx1));
+				mesh.addVertex(vertexData.getVertex(idx2));
+				mesh.addVertex(vertexData.getVertex(idx3));
+				
+				if (vertexData.hasNormals())
+				{
+					mesh.addNormal(vertexData.getNormal(idx1));
+					mesh.addNormal(vertexData.getNormal(idx2));
+					mesh.addNormal(vertexData.getNormal(idx3));
+				}
+				
+				if (vertexData.hasColors())
+				{
+					mesh.addColor(vertexData.getColor(idx1));
+					mesh.addColor(vertexData.getColor(idx2));
+					mesh.addColor(vertexData.getColor(idx3));
+				}
+				else
+				{
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+				}
+			}
+		}
+		else
+		{
+			for (int i = 1; i < vertexData.getNumVertices() - 1; i++)
+			{
+				const int idx1 = 0;
+				const int idx2 = i;
+				const int idx3 = i + 1;
+				
+				mesh.addVertex(vertexData.getVertex(idx1));
+				mesh.addVertex(vertexData.getVertex(idx2));
+				mesh.addVertex(vertexData.getVertex(idx3));
+				
+				if (vertexData.hasNormals())
+				{
+					mesh.addNormal(vertexData.getNormal(idx1));
+					mesh.addNormal(vertexData.getNormal(idx2));
+					mesh.addNormal(vertexData.getNormal(idx3));
+				}
+				
+				if (vertexData.hasColors())
+				{
+					mesh.addColor(vertexData.getColor(idx1));
+					mesh.addColor(vertexData.getColor(idx2));
+					mesh.addColor(vertexData.getColor(idx3));
+				}
+				else
+				{
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+					mesh.addColor(currentColor);
+				}
+			}
+		}
+	}
+	else if (m == OF_PRIMITIVE_LINES)
+	{
+		ofxPolyline2Mesh poly;
+		poly.setupTube();
+		poly.width(lineWidth / 2);
+		poly.color(currentColor);
+		
+		if (vertexData.hasIndices())
+		{
+			for (int i = 0; i < vertexData.getNumIndices(); i += 2)
+			{
+				int idx1 = vertexData.getIndex(i);
+				int idx2 = vertexData.getIndex(i + 1);
+
+				poly.clear();
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(idx1));
+				poly.addVertex(vertexData.getVertex(idx1));
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(idx2));
+				poly.addVertex(vertexData.getVertex(idx2));
+				
+				ofMesh &m = poly.getMesh();
+				mesh.addColors(m.getColors());
+				mesh.addNormals(m.getNormals());
+				mesh.addVertices(m.getVertices());
+			}
+		}
+		else
+		{
+			for (int i = 0; i < vertexData.getNumVertices(); i += 2)
+			{
+				poly.clear();
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(i));
+				poly.addVertex(vertexData.getVertex(i));
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(i + 1));
+				poly.addVertex(vertexData.getVertex(i + 1));
+				
+				ofMesh &m = poly.getMesh();
+				mesh.addColors(m.getColors());
+				mesh.addNormals(m.getNormals());
+				mesh.addVertices(m.getVertices());
+			}
+		}
+	}
+	else if (m == OF_PRIMITIVE_LINE_STRIP)
+	{
+		ofxPolyline2Mesh poly;
+		poly.setupTube();
+		poly.width(lineWidth / 2);
+		poly.color(currentColor);
+
+		if (vertexData.hasIndices())
+		{
+			for (int i = 0; i < vertexData.getNumIndices(); i++)
+			{
+				int idx = vertexData.getIndex(i);
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(idx));
+				
+				poly.addVertex(vertexData.getVertex(idx));
+			}
+		}
+		else
+		{
+			for (int i = 0; i < vertexData.getNumVertices(); i++)
+			{
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(i));
+				
+				poly.addVertex(vertexData.getVertex(i));
+			}
+		}
+		
+		mesh = poly.getMesh();
+	}
+	else if (m == OF_PRIMITIVE_LINE_LOOP)
+	{
+		ofxPolyline2Mesh poly;
+		poly.setupTube();
+		poly.width(lineWidth / 2);
+		poly.color(currentColor);
+		
+		if (vertexData.hasIndices())
+		{
+			for (int i = 0; i < vertexData.getNumIndices(); i++)
+			{
+				int idx = vertexData.getIndex(i);
+				
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(idx));
+				
+				poly.addVertex(vertexData.getVertex(idx));
+			}
+			
+			if (vertexData.hasColors())
+				poly.color(vertexData.getColor(vertexData.getIndex(0)));
+			
+			poly.addVertex(vertexData.getVertex(vertexData.getIndex(0)));
+		}
+		else
+		{
+			for (int i = 0; i < vertexData.getNumVertices(); i++)
+			{
+				if (vertexData.hasColors())
+					poly.color(vertexData.getColor(i));
+				
+				poly.addVertex(vertexData.getVertex(i));
+			}
+			
+			if (vertexData.hasColors())
+				poly.color(vertexData.getColor(0));
+			
+			poly.addVertex(vertexData.getVertex(0));
+		}
+		
+		mesh = poly.getMesh();
 	}
 	else
 	{
+		cout << "e::" << m << endl;
 		NOT_IMPL;
 	}
+	
+	return mesh;
+}
+
+const Renderer::ShapeData Renderer::serializeMesh(ofMesh &vertexData)
+{
+	ofMesh mesh = mesh2TrianglesMesh(vertexData);
 	
 	uint32_t flags = ESinglePrecision | EHasColors;
 	uint64_t vertexCount = 0, triangleCount = 0;
@@ -653,7 +943,13 @@ string Renderer::serializeMesh(ofMesh &vertexData)
 
 	string output;
 	zcompress(oss.str(), output);
-	return output;
+	
+	ShapeData data;
+	data.index = serializedMeshes.size();
+	data.serializedData = output;
+	data.bsdf = bsdf;
+	
+	return data;
 }
 
 //
@@ -662,7 +958,7 @@ string Renderer::serializeMesh(ofMesh &vertexData)
 
 void Renderer::enableVertexColor()
 {
-	setBsdf("<bsdf type='diffuse'><texture type='vertexcolors' name='reflectance'/></bsdf>");
+	setBsdf("<bsdf type='twosided'><bsdf type='diffuse'><texture type='vertexcolors' name='reflectance'/></bsdf></bsdf>");
 }
 
 void Renderer::setBsdf(string xml)
@@ -724,28 +1020,29 @@ void setup()
 	}
 }
 
+void setBackgroundAlpha(bool v)
+{
+	ofxMitsuba::setup();
+	ofxMitsuba::mitsuba->setBackgroundAlpha(v);
 }
 	
-//
-// global
-//
-
-void ofxMitsubaEnableVertexColor()
+void enableVertexColor()
 {
 	ofxMitsuba::setup();
 	ofxMitsuba::mitsuba->enableVertexColor();
 }
 
-void ofxMitsubaSetBsdf(string xml)
+void setBsdf(string xml)
 {
 	ofxMitsuba::setup();
 	ofxMitsuba::mitsuba->setBsdf(xml);
 }
 
-void ofxMitsubaPreview(ofxMitsuba::Settings settings)
+void preview(ofxMitsuba::Settings settings)
 {
 	ofxMitsuba::setup();
 	ofSetCurrentRenderer(ofxMitsuba::rendererCollection);
 	ofxMitsuba::mitsuba->captrueScreenShot(settings);
 }
 
+}

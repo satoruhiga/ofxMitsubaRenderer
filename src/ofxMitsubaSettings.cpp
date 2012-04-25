@@ -19,8 +19,7 @@ Settings::Settings(const Settings &copy)
 
 Settings DirectIllumination(int sampleCount)
 {
-	// "<integer name='bsdfSamples' value='8'/>"
-	return Settings(Integrator("direct", sampleCount > 64, sampleCount < 1),
+	return Settings(Integrator("direct", sampleCount > 64, sampleCount < 1, "<integer name=\"bsdfSamples\" value=\"8\"/><integer name=\"luminaireSamples\" value=\"8\"/>"),
 					Sampler("ldsampler", sampleCount));
 }
 

@@ -57,7 +57,7 @@ public:
 	ofRectMode getRectMode() { return rectMode; }
 	void setFillMode(ofFillFlag fill) { this->fill = fill; }
 	ofFillFlag getFillMode() { return fill; }
-	void setLineWidth(float lineWidth) {}
+	void setLineWidth(float v) { lineWidth = v; }
 	void setBlendMode(ofBlendMode blendMode) {}
 	void setLineSmoothing(bool smooth) {}
 	void setCircleResolution(int res) {}
@@ -106,6 +106,8 @@ public:
 	void onUpdate(ofEventArgs&);
 	void onDraw(ofEventArgs&);
 	
+	void setBackgroundAlpha(bool yn) { backgroundAlpha = yn; }
+	
 protected:
 
 	ofFillFlag fill;
@@ -123,6 +125,9 @@ protected:
 	ofMatrix4x4 currentMatrix, globalMatrix;
 	stack<ofMatrix4x4> matrixStack, globalMatrixStack;
 	
+	float lineWidth;
+	bool backgroundAlpha;
+	
 	struct ShapeData
 	{
 		int index;
@@ -131,7 +136,7 @@ protected:
 	};
 	
 	vector<ShapeData> serializedMeshes;
-	string serializeMesh(ofMesh &vertexData);
+	const ShapeData serializeMesh(ofMesh &vertexData);
 	
 	Settings settings;
 	string bsdf;
@@ -139,11 +144,15 @@ protected:
 	bool saveAsPreview;
 	string applicationPath;
 	
+	ofMesh mesh2TrianglesMesh(ofMesh& mesh);
+	
 };
 
+void setBackgroundAlpha(bool v);
+
+void enableVertexColor();
+void setBsdf(string xml);
+
+void preview(ofxMitsuba::Settings settings = ofxMitsuba::DirectIllumination());
+
 }
-
-void ofxMitsubaEnableVertexColor();
-void ofxMitsubaSetBsdf(string xml);
-
-void ofxMitsubaPreview(ofxMitsuba::Settings settings = ofxMitsuba::DirectIllumination());
