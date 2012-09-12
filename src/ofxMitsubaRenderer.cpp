@@ -35,8 +35,8 @@ Renderer::Renderer()
 	fill = OF_FILLED;
 	rectMode = OF_RECTMODE_CENTER;
 
-	ofAddListener(ofEvents.draw, this, &Renderer::onDraw);
-	ofAddListener(ofEvents.update, this, &Renderer::onUpdate);
+	ofAddListener(ofEvents().draw, this, &Renderer::onDraw);
+	ofAddListener(ofEvents().update, this, &Renderer::onUpdate);
 	
 	// for ofGLRenderer uninitialized bug
 	ofSetCoordHandedness(OF_RIGHT_HANDED);
@@ -50,8 +50,8 @@ Renderer::~Renderer()
 
 	try
 	{
-		ofRemoveListener(ofEvents.draw, this, &Renderer::onDraw);
-		ofRemoveListener(ofEvents.update, this, &Renderer::onUpdate);
+		ofRemoveListener(ofEvents().draw, this, &Renderer::onDraw);
+		ofRemoveListener(ofEvents().update, this, &Renderer::onUpdate);
 	}
 	catch (...)
 	{
@@ -272,22 +272,32 @@ void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType)
 	draw(vertexData);
 }
 
+void Renderer::draw(ofMesh& vertexData, bool useColors, bool useTextures, bool useNormals)
+{
+    draw(vertexData);
+}    
+
+void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType, bool useColors, bool useTextures, bool useNormals)
+{
+    draw(vertexData);
+}
+
 void Renderer::draw(vector<ofPoint>& vertexData, ofPrimitiveMode drawMode)
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofImage& image, float x, float y, float z, float w, float h)
+void Renderer::draw(ofImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofFloatImage& image, float x, float y, float z, float w, float h)
+void Renderer::draw(ofFloatImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofShortImage& image, float x, float y, float z, float w, float h)
+void Renderer::draw(ofShortImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
 {
 	NOT_IMPL;
 }
@@ -342,6 +352,11 @@ void Renderer::drawCircle(float x, float y, float z, float radius)
 	// NOT_IMPL;
 }
 
+void Renderer::drawSphere(float x, float y, float z, float radius)
+{
+    // NOT_IMPL;
+}
+    
 void Renderer::drawEllipse(float x, float y, float z, float width, float height)
 {
 	// NOT_IMPL;
