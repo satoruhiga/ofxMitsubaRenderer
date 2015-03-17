@@ -282,6 +282,11 @@ void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType, bool useCol
     draw(vertexData);
 }
 
+void Renderer::draw(of3dPrimitive& model, ofPolyRenderMode renderType)
+{
+	NOT_IMPL;
+}
+	
 void Renderer::draw(vector<ofPoint>& vertexData, ofPrimitiveMode drawMode)
 {
 	NOT_IMPL;

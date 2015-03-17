@@ -13,7 +13,7 @@ public:
 	Renderer();
 	virtual ~Renderer();
 
-	string getType() { return "Mitsuba"; }
+	const string& getType() { static string type = "Mitsuba"; return type; }
 
 	void update() {}
 
@@ -27,7 +27,8 @@ public:
 	void draw(ofImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh);
 	void draw(ofFloatImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh);
 	void draw(ofShortImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh);
-
+	void draw(of3dPrimitive& model, ofPolyRenderMode renderType);
+	
 	void pushView() {}
 	void popView() {}
 
@@ -60,6 +61,7 @@ public:
 	void setFillMode(ofFillFlag fill) { this->fill = fill; }
 	ofFillFlag getFillMode() { return fill; }
 	void setLineWidth(float v) { lineWidth = v; }
+	void setDepthTest(bool depthTest) {}
 	void setBlendMode(ofBlendMode blendMode) {}
 	void setLineSmoothing(bool smooth) {}
 	void setCircleResolution(int res) {}
