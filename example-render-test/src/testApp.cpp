@@ -42,7 +42,7 @@ void testApp::draw()
 	for (int i = 0; i < points.size(); i++)
 	{
 		ofVec3f p = points[i];
-		ofBox(p.x, p.y, p.z, 50);
+		ofDrawBox(p.x, p.y, p.z, 50);
 	}
 	
 	ofxMitsuba::enableVertexColor();

@@ -4,8 +4,6 @@
 
 #include <zlib.h>
 
-#define NOT_IMPL ofLogError("ofxMitsubaRenderer", "Not implemented: " + string(__PRETTY_FUNCTION__)), throw "Not implemented";
-
 namespace ofxMitsuba
 {
 
@@ -17,7 +15,7 @@ static ofPtr<ofRendererCollection> rendererCollection;
 static void setupMitsubaRenderer();
 static bool zcompress(const string& input, string& output);
 
-Renderer::Renderer()
+Renderer::Renderer():graphics3d(this)
 {
 	currentRenderer = this;
 	
@@ -35,7 +33,7 @@ Renderer::Renderer()
 	fill = OF_FILLED;
 	rectMode = OF_RECTMODE_CENTER;
 
-	ofAddListener(ofEvents().draw, this, &Renderer::onDraw);
+    ofAddListener(ofEvents().draw, this, &Renderer::onDraw);
 	ofAddListener(ofEvents().update, this, &Renderer::onUpdate);
 	
 	// for ofGLRenderer uninitialized bug
@@ -50,7 +48,7 @@ Renderer::~Renderer()
 
 	try
 	{
-		ofRemoveListener(ofEvents().draw, this, &Renderer::onDraw);
+        ofRemoveListener(ofEvents().draw, this, &Renderer::onDraw);
 		ofRemoveListener(ofEvents().update, this, &Renderer::onUpdate);
 	}
 	catch (...)
@@ -73,20 +71,22 @@ void Renderer::viewport(ofRectangle viewport)
 
 void Renderer::viewport(float x, float y, float width, float height, bool invertY)
 {
+    if (width < 0) width = ofGetWidth();
+    if (height < 0) height = ofGetHeight();
 	viewport(ofRectangle(x, y, width, height));
 }
 
-ofRectangle Renderer::getCurrentViewport()
+ofRectangle Renderer::getCurrentViewport() const
 {
 	return currentViewport;
 }
 
-int Renderer::getViewportWidth()
+int Renderer::getViewportWidth() const
 {
 	return currentViewport.width;
 }
 
-int Renderer::getViewportHeight()
+int Renderer::getViewportHeight() const
 {
 	return currentViewport.height;
 }
@@ -97,26 +97,31 @@ int Renderer::getViewportHeight()
 
 void Renderer::pushMatrix()
 {
-	matrixStack.push(currentMatrix);
-	globalMatrixStack.push(globalMatrix);
-
-	globalMatrix.preMult(currentMatrix);
-	currentMatrix.makeIdentityMatrix();
+    matrixStack.push(currentMatrix);
+    globalMatrixStack.push(globalMatrix);
+    
+    globalMatrix.preMult(currentMatrix);
+    currentMatrix.makeIdentityMatrix();
 }
 
 void Renderer::popMatrix()
 {
-	if (matrixStack.empty())
-	{
-		ofLogError("ofxMitsuba::Renderer", "matrix stack underflow");
-		return;
-	}
-
-	currentMatrix = matrixStack.top();
-	matrixStack.pop();
-
-	globalMatrix = globalMatrixStack.top();
-	globalMatrixStack.pop();
+    if (matrixStack.empty())
+    {
+        ofLogError("ofxMitsuba::Renderer", "matrix stack underflow");
+        return;
+    }
+    
+    currentMatrix = matrixStack.top();
+    matrixStack.pop();
+    
+    globalMatrix = globalMatrixStack.top();
+    globalMatrixStack.pop();
+}
+    
+void Renderer::translate(const glm::vec3 & p)
+{
+    translate(p.x, p.y, p.z);
 }
 
 void Renderer::translate(float x, float y, float z)
@@ -124,37 +129,57 @@ void Renderer::translate(float x, float y, float z)
 	currentMatrix.glTranslate(x, y, z);
 }
 
-void Renderer::translate(const ofPoint& p)
-{
-	currentMatrix.glTranslate(p);
-}
-
 void Renderer::scale(float xAmnt, float yAmnt, float zAmnt)
 {
 	currentMatrix.glScale(xAmnt, yAmnt, zAmnt);
 }
+    
+void Renderer::rotateRad(float degrees, float vecX, float vecY, float vecZ)
+{
+    currentMatrix.glRotateRad(degrees, vecX, vecY, vecZ);
+}
 
-void Renderer::rotate(float degrees, float vecX, float vecY, float vecZ)
+void Renderer::rotateXRad(float degrees)
+{
+    currentMatrix.glRotateRad(degrees, 1, 0, 0);
+}
+
+void Renderer::rotateYRad(float degrees)
+{
+    currentMatrix.glRotateRad(degrees, 0, 1, 0);
+}
+
+void Renderer::rotateZRad(float degrees)
+{
+    currentMatrix.glRotateRad(degrees, 0, 0, 1);
+}
+
+void Renderer::rotateRad(float degrees)
+{
+    currentMatrix.glRotateRad(degrees, 0, 0, 1);
+}
+
+void Renderer::rotateDeg(float degrees, float vecX, float vecY, float vecZ)
 {
 	currentMatrix.glRotate(degrees, vecX, vecY, vecZ);
 }
 
-void Renderer::rotateX(float degrees)
+void Renderer::rotateXDeg(float degrees)
 {
 	currentMatrix.glRotate(degrees, 1, 0, 0);
 }
 
-void Renderer::rotateY(float degrees)
+void Renderer::rotateYDeg(float degrees)
 {
 	currentMatrix.glRotate(degrees, 0, 1, 0);
 }
 
-void Renderer::rotateZ(float degrees)
+void Renderer::rotateZDeg(float degrees)
 {
 	currentMatrix.glRotate(degrees, 0, 0, 1);
 }
 
-void Renderer::rotate(float degrees)
+void Renderer::rotateDeg(float degrees)
 {
 	currentMatrix.glRotate(degrees, 0, 0, 1);
 }
@@ -199,7 +224,7 @@ void Renderer::setHexColor(int hexColor)
 	currentColor *= INV_CHAR;
 }
 
-ofFloatColor& Renderer::getBgColor()
+ofColor Renderer::getBackgroundColor()
 {
 	return currentBackgroundColor;
 }
@@ -231,6 +256,11 @@ void Renderer::background(int r, int g, int b, int a)
 //
 // clear
 //
+    
+void Renderer::clear()
+{
+    
+}
 
 void Renderer::clear(float r, float g, float b, float a)
 {
@@ -251,68 +281,69 @@ void Renderer::clearAlpha()
 // draw
 //
 
-void Renderer::draw(ofPolyline & poly)
+void Renderer::draw(const ofPolyline & poly) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofPath & shape)
+void Renderer::draw(const ofPath & shape) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofMesh& vertexData)
+void Renderer::draw(const ofMesh& vertexData) const
 {
-	const ShapeData &s = serializeMesh(vertexData);
-	serializedMeshes.push_back(s);
+	ShapeData s = serializeMesh(vertexData);
+    vector<ShapeData> & x = (vector<ShapeData>&) serializedMeshes;
+	x.push_back(s);
 }
 
-void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType)
+void Renderer::draw(const ofMesh& vertexData, ofPolyRenderMode renderType) const
 {
 	draw(vertexData);
 }
 
-void Renderer::draw(ofMesh& vertexData, bool useColors, bool useTextures, bool useNormals)
+void Renderer::draw(const ofMesh& vertexData, bool useColors, bool useTextures, bool useNormals) const
 {
     draw(vertexData);
 }    
 
-void Renderer::draw(ofMesh& vertexData, ofPolyRenderMode renderType, bool useColors, bool useTextures, bool useNormals)
+void Renderer::draw(const ofMesh& vertexData, ofPolyRenderMode renderType, bool useColors, bool useTextures, bool useNormals) const
 {
     draw(vertexData);
 }
 
-void Renderer::draw(of3dPrimitive& model, ofPolyRenderMode renderType)
+void Renderer::draw(const of3dPrimitive& model, ofPolyRenderMode renderType) const
 {
-	NOT_IMPL;
+    draw(model.getMesh(), renderType);
 }
 	
-void Renderer::draw(vector<ofPoint>& vertexData, ofPrimitiveMode drawMode)
+void Renderer::draw(const vector<ofPoint>& vertexData, ofPrimitiveMode drawMode) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
+void Renderer::draw(const ofImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofFloatImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
+void Renderer::draw(const ofFloatImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::draw(ofShortImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh)
+void Renderer::draw(const ofShortImage& image, float x, float y, float z, float w, float h, float sx, float sy, float sw, float sh) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::drawLine(float x1, float y1, float z1, float x2, float y2, float z2)
+void Renderer::drawLine(float x1, float y1, float z1, float x2, float y2, float z2) const
 {
 	NOT_IMPL;
 }
 
-void Renderer::drawRectangle(float x, float y, float z, float w, float h)
+void Renderer::drawRectangle(float x, float y, float z, float w, float h) const
 {
 	ofMesh mesh;
 
@@ -347,27 +378,27 @@ void Renderer::drawRectangle(float x, float y, float z, float w, float h)
 	draw(mesh);
 }
 
-void Renderer::drawTriangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3)
+void Renderer::drawTriangle(float x1, float y1, float z1, float x2, float y2, float z2, float x3, float y3, float z3) const
 {
 	// NOT_IMPL;
 }
 
-void Renderer::drawCircle(float x, float y, float z, float radius)
+void Renderer::drawCircle(float x, float y, float z, float radius) const
 {
 	// NOT_IMPL;
 }
 
-void Renderer::drawSphere(float x, float y, float z, float radius)
+void Renderer::drawSphere(float x, float y, float z, float radius) const
 {
     // NOT_IMPL;
 }
     
-void Renderer::drawEllipse(float x, float y, float z, float width, float height)
+void Renderer::drawEllipse(float x, float y, float z, float width, float height) const
 {
 	// NOT_IMPL;
 }
 
-void Renderer::drawString(string text, float x, float y, float z, ofDrawBitmapMode mode)
+void Renderer::drawString(std::string text, float x, float y, float z) const
 {
 	// NOT_IMPL;
 }
@@ -376,10 +407,10 @@ void Renderer::drawString(string text, float x, float y, float z, ofDrawBitmapMo
 // camera
 //
 
-void Renderer::setupScreenPerspective(float width, float height, ofOrientation orientation, bool vFlip, float fov, float nearDist, float farDist)
+void Renderer::setupScreenPerspective(float width, float height, float fov, float nearDist, float farDist)
 {
-	if (width == 0) width = ofGetWidth();
-	if (height == 0) height = ofGetHeight();
+	if (width < 0) width = ofGetWidth();
+	if (height < 0) height = ofGetHeight();
 
 	float viewW = ofGetViewportWidth();
 	float viewH = ofGetViewportHeight();
@@ -401,19 +432,19 @@ void Renderer::setupScreenPerspective(float width, float height, ofOrientation o
 	this->eyeY = eyeY;
 	this->dist = dist;
 
-	if(!vFlip)
-	{
-		vscale.set(1, -1, 1);
-		vtranslate.set(0, height, 0);
-	}
-	else
-	{
-		vscale.set(1, 1, 1);
-		vtranslate.set(0, 0, 0);
-	}
+//    if(!vFlip)
+//    {
+//        vscale.set(1, -1, 1);
+//        vtranslate.set(0, height, 0);
+//    }
+//    else
+//    {
+        vscale.set(1, 1, 1);
+        vtranslate.set(0, 0, 0);
+//    }
 }
 
-void Renderer::setupScreenOrtho(float width, float height, ofOrientation orientation, bool vFlip, float nearDist, float farDist)
+void Renderer::setupScreenOrtho(float width, float height, float nearDist, float farDist)
 {
 	NOT_IMPL;
 }
@@ -435,28 +466,28 @@ void Renderer::onUpdate(ofEventArgs&)
 
 	serializedMeshes.clear();
 }
-
+    
 void Renderer::onDraw(ofEventArgs&)
 {
-	if (saveAsPreview)
-	{
-		saveAsPreview = false;
-		
-		string integrator = "<integrator type='path'/>";
-		string 	sampler = "<sampler type='ldsampler'></sampler>";
-
-		exportFrame("preview", settings);
-		
-		string cmd = getApplicationPath() + " -o " 
-			+ ofToDataPath("preview.png") + " "
-			+ ofToDataPath("preview.xml") + " -r 10";
-		system(cmd.c_str());
-		
-		cmd = "open " + ofToDataPath("preview.png");
-		system(cmd.c_str());
-		
-		ofSetCurrentRenderer(ofGetGLRenderer());
-	}
+    if (saveAsPreview)
+    {
+        saveAsPreview = false;
+        
+        string integrator = "<integrator type='path'/>";
+        string     sampler = "<sampler type='ldsampler'></sampler>";
+        
+        exportFrame("preview", settings);
+        
+        string cmd = getApplicationPath() + " -o "
+        + ofToDataPath("preview.png") + " "
+        + ofToDataPath("preview.xml"); // + " -r 10";
+        system(cmd.c_str());
+        
+        cmd = "open " + ofToDataPath("preview.png");
+        system(cmd.c_str());
+        
+        ofSetCurrentRenderer(ofGetGLRenderer());
+    }
 }
 
 void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
@@ -500,7 +531,7 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	ofstream xml(ofToDataPath(filename + ".xml").c_str());
 	
 	xml << "<?xml version='1.0' encoding='utf-8'?>" << endl;
-	xml << "<scene version='0.3.0'>" << endl;
+	xml << "<scene version='0.5.0'>" << endl;
 	
 	xml << settings.getIntegrator() << endl;
 	
@@ -508,12 +539,12 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	
 	if (!backgroundAlpha)
 	{
-		xml << "<luminaire type='constant'>" << endl;
+		xml << "<emitter type='constant'>" << endl;
 		xml << "<srgb name='intensity' value='" << currentBackgroundColor.r << "," << currentBackgroundColor.g << "," << currentBackgroundColor.b << "'/>" << endl;
-		xml << "</luminaire>" << endl << endl;
+		xml << "</emitter>" << endl << endl;
 	}
 	
-	xml << "<camera type='perspective'>" << endl;
+	xml << "<sensor type='perspective'>" << endl;
 	
 	xml << "<float name='fov' value='" << fov << "'/>" << endl;
 	xml << "<float name='nearClip' value='" << nearClip << "'/>" << endl;
@@ -525,14 +556,14 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	xml << "<translate x='" << vtranslate.x << "' y='" << vtranslate.y << "' z='" << vtranslate.z << "'/>" << endl;
 	xml << "</transform>" << endl;
 	
-	xml << "<film type='pngfilm'>" << endl;
+	xml << "<film type='ldrfilm'>" << endl;
 	xml << "<integer name='width' value='" << currentViewport.width << "'/>" << endl;
 	xml << "<integer name='height' value='" << currentViewport.height << "'/>" << endl;
 	
-	if (backgroundAlpha)
-		xml << "<boolean name='alpha' value='true'/>" << endl;
-	else
-		xml << "<boolean name='alpha' value='false'/>" << endl;
+//    if (backgroundAlpha)
+//        xml << "<boolean name='alpha' value='true'/>" << endl;
+//    else
+//        xml << "<boolean name='alpha' value='false'/>" << endl;
 	
 	xml << "<boolean name='banner' value='false'/>" << endl;
 	xml << "<rfilter type='gaussian'/>" << endl;
@@ -540,7 +571,7 @@ void Renderer::exportFrame(string filename, ofxMitsuba::Settings settings)
 	
 	xml << settings.getSampler() << endl;
 	
-	xml << "</camera>" << endl;
+	xml << "</sensor>" << endl;
 	
 	xml << endl;
 	
@@ -573,7 +604,7 @@ enum ETriMeshFlags
 	EDoublePrecision = 0x2000
 };
 	
-ofMesh Renderer::mesh2TrianglesMesh(ofMesh& vertexData)
+ofMesh Renderer::mesh2TrianglesMesh(const ofMesh& vertexData) const
 {
 	ofMesh mesh;
 	mesh.setMode(OF_PRIMITIVE_TRIANGLES);
@@ -860,7 +891,7 @@ ofMesh Renderer::mesh2TrianglesMesh(ofMesh& vertexData)
 	return mesh;
 }
 
-const Renderer::ShapeData Renderer::serializeMesh(ofMesh &vertexData)
+Renderer::ShapeData Renderer::serializeMesh(const ofMesh &vertexData) const
 {
 	ofMesh mesh = mesh2TrianglesMesh(vertexData);
 	
